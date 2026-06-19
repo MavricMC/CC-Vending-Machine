@@ -5,7 +5,7 @@
   <a href="https://github.com/githubUsername/repositoryName/releases/"><img src="https://img.shields.io/github/release/MavricMC/CC-Vending-Machine" alt="Release"/></a>
 </p>
 
-# `A modification to the CC_POS UI to work self service, and supply the purchased items to the player`
+# A modification to the CC_POS UI to work self service, and supply the purchased items to the player
 
 # How to install.
 
