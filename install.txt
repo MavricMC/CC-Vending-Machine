@@ -1,5 +1,11 @@
-testFolder
-MavricMC/gitGet-Template/main/code.lua
-code.lua
-MavricMC/gitGet-Template/main/functions.lua
-testFolder/functions.lua
+vend
+MavricMC/CC-Vending-Machine/main/startup.lua
+startup.lua
+MavricMC/CC-Vending-Machine/main/.settings
+.settings
+MavricMC/CC-Vending-Machine/main/items.lua
+vend/items.lua
+MavricMC/CC-Vending-Machine/main/json.lua
+vend/json.lua
+MavricMC/CC-Vending-Machine/main/MPNLogo.nfp
+vend/MPNLogo.nfp
