@@ -1,4 +1,4 @@
-# CC-Vending-Machine
+# CC Vending Machine Self-Service
 
 <p align="center">
   <a href="https://github.com/githubUsername/repositoryName/releases/"><img src="https://img.shields.io/github/downloads/MavricMC/CC-Vending-Machine/total.svg" alt="GitHub All Releases"/></a>
