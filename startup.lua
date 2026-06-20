@@ -18,7 +18,7 @@ local server = 0 --Server id
 local logFile = "/vend/log"
 local backgroundColor = colors.black
 local chests = {"minecraft:chest_0"}
-local junk = "minecraft:dropper_0"
+local junk = "minecraft:chest_1" --Given that it has to empty 2 barrels each payment, a chest with a hopper to a dropper is reccomended. 9 slot dropper from ATM would be too small--
 local output = "minecraft:barrel_0"
 local buffer = "minecraft:barrel_1" --Buffer must have the same amount of storage slots as the ouput. (Or less) Easy to just use the same storage block for both
 local salesTax = 0.15 --0.15 = 15% --math.celi used to display most totals, bank charged full float. Makes display short and price is still 2dp at payment
@@ -53,100 +53,94 @@ local pin = "" --Current entered pin
 local isPin = false --In pin entering stage
 local orderY = 1 --Which order item is displayed at the top
 
-local _junk = peripheral.wrap(junk)
-local _output = peripheral.wrap(output)
-local _buffer = peripheral.wrap(buffer)
+local junk_ = peripheral.wrap(junk)
+local output_ = peripheral.wrap(output)
+local buffer_ = peripheral.wrap(buffer)
+
+if buffer_.size() > output_.size() then
+    error("Buffer has more slots than output")
+end
 
 --Storage functions--
 function getStored(name)
     local count = 0
     for _, v in pairs(chests) do
-        cs = peripheral.wrap(v)
-        for _, v2 in pairs(cs.list()) do
-            if v2.name == name then
-                count = count + v2.count
+        local chest = peripheral.wrap(v)
+        for _, item in pairs(chest.list()) do
+            if item.name == name then
+                count = count + item.count
             end
         end
     end
     return count
 end
 
-function move(from, to)
-    --Run list to check if there are any items before spending more resources--
-    --Same thing used for to buffer, too 
+function flush(to, from, timeout)
+    local inFrom = from.list()
+    for k, v in pairs(inFrom) do
+        local count = 0
+        if timeout then
+            local time = 0
+            while count < v.count and time < 50 do --5 second timeout till it gives up
+                count = count + to.pullItems(peripheral.getName(from), k)
+                time = time + 1
+                sleep(0.1)
+            end
+        else
+            count = to.pullItems(peripheral.getName(from), k) --Without timeout, only try once
+        end
+        if count ~= v.count then
+            --printError("Failed flush ".. peripheral.getName(from).. " to ".. peripheral.getName(to))--Error is useful for debugging but is unhelpful and unsecure for users to see
+            --sleep(3)
+            return false
+        end
+    end
+
+    return true
+end
+
+function getItem(name, count)
+    local added = 0
+    for _, v in pairs(chests) do
+        local chest = peripheral.wrap(v)
+        local inChest = chest.list()
+        for k, item in pairs(inChest) do
+            if item.name == name then
+                local moved = chest.pushItems(buffer, k, (count - added))
+                added = added + moved
+                if added > count then --Somehow to much
+                    return false, "Buffered too much ".. name
+                elseif added == count then --Reached the goal so no points continuing
+                    return true
+                end
+            end
+        end
+    end
+
+    return false, "Not enough ".. name
+end
+
+function cleanBuffer()
+    for _, v in pairs(chests) do
+        chest = peripheral.wrap(v)
+        flush(chest, buffer_, false) --Flush worked, so items in buffer are only products, to return to chest, no timeout cause trying lots of chests--
+    end
 end
 
 function toBuffer()
-    --Use to storage --Run list to check if there are any items before spending more resources--
-
-
-    --use order
-end
-
-function toOutput()
-    --Junk output-- --Run list to check if there are any items before spending more resources--
-
-    --Run list to check if there are any items before spending more resources--
-
-    --Run to storage at end encase some itemsa re somehow left over
-end
-
-function toStorage()
-    --Run list to check if there are any items before spending more resources--
-end
-
-function pullapideposit()
-    local count = 0
-    for _, v in pairs(chests) do
-        for i = 1, 9 do
-            local tab = d.getItemDetail(i)
-            if tab ~= nil then
-                if tab.name == coin then
-                    local deped = d.pushItems(v, i, 64)
-                    count = count + deped
-                else
-                    d.pushItems(junk, i, 64)
-                end
+    local result = flush(junk_, buffer_, true)
+    if result then
+        for _, v in pairs(order) do
+            local result2, error = getItem(v[2], tonumber(v[5]))
+            if not result2 then
+                cleanBuffer()
+                return false, error
             end
         end
-    end
-    if count > 0 then
-        return true, count
+
+        return true
     else
-        return false, "Ammount enterd must be more than 0"
-    end
-end
- 
-function pullapiwithdraw(amount)
-    if amount > 576 then
-        return false, "Amount must be at maximum 9 stacks or 576 items"
-    end
-    if amount > getStored() then
-        return false, "Not enough in storage"
-    end
-    
-    local count = 0
-    for _, v in pairs(chests) do
-        cs = peripheral.wrap(v)
-        for i = 1, 54 do
-            tab = cs.getItemDetail(i)
-            if tab ~= nil then
-                if tab.name == coin then
-                    if (count + tab.count) > amount then
-                        d.pullItems(v, i, (amount - count))
-                        return true
-                    else
-                        d.pullItems(v, i, tab.count)
-                        count = count + tab.count
-                    end
-                    if count == amount then
-                        return true
-                    end
-                else
-                    j.pullItems(chests, i, 64)
-                end
-            end
-        end
+        return false, "Failed to flush buffer to junk"
     end
 end
 
@@ -761,13 +755,25 @@ while true do
                     term.setTextColor(colors.white)
                     writeCenter(payText, 13)
 
-                    -----Buffer and output should be the same container size-----
-                    -----Make sure items fit in buffer, and therefore output-----
-                    -----Move items to buffer chest before making withdrawal-----
-
-                    local suc, res = withdraw(id, total, atm, pin)
+                    local suc = flush(junk_, output_, true)
+                    local res = "Default"
+                    if suc then
+                        suc, res = toBuffer()
+                        if suc then
+                            suc, res = withdraw(id, total, atm, pin)
+                            if suc then
+                                disk.setLabel(drive, "$".. tostring(res))
+                                flush(output_, buffer_, true) --If the user fills the output after we flush it, thats their fault
+                            else
+                                cleanBuffer()
+                            end
+                        end
+                    else
+                        res = "Failed to flush output to junk"
+                    end
+                    
+                    disk.eject(drive)
                     drawPayment(false, false)
-
                     --print()
                     local logArray =  {{ date = os.date("*t"), vendVersion = vers, server = server, card = id, total = total, location = atm, result = suc, response = res, salesTax = salesTax, addTax = addTax}}
                     for k, v in pairs(order) do --Reconstruct the items with the editable data from the order
@@ -815,6 +821,7 @@ while true do
     elseif event[1] == "mouse_click" then
         if mode == 3 then
             if (checkX(event[3], event[4])) then
+                disk.eject(drive)
                 term.setCursorBlink(false)
                 drawPayment(false, false)
                 local payText = string.format("Transaction cancelled: $%.02f", total)
@@ -1012,10 +1019,8 @@ while true do
         end
     elseif event[1] == "disk" then
         if mode == 3 then
-            --Fix pay stuff--
             if not isPin then
                 local tempId = disk.getID(drive)
-                disk.eject(drive)
                 if tempId ~= nil then
                     id = tempId
                     isPin = true
