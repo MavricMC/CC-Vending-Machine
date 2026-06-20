@@ -1,6 +1,6 @@
 --Vending Machine--
 
-local vers = "0.1T"
+local vers = "0.1"
 
 --Made by Mavric--
 --How to setup is on my youtube channel--
